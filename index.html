@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Financials & Market Infrastructure — Valuation Comps</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --txt:#e7ebf0; --mut:#9aa4b2; --acc:#4f9cf9; --acc2:#27c19a;
+    --pos:#27c19a; --neg:#ef6f6f; --chip:#232936;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:20px 24px 14px;border-bottom:1px solid var(--line);background:var(--panel);}
+  h1{margin:0 0 4px;font-size:20px;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--mut);font-size:12.5px}
+  .sub b{color:var(--txt);font-weight:600}
+  main{padding:18px 24px 60px;max-width:1500px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:22px}
+  .card h2{margin:0;padding:14px 18px;font-size:15px;border-bottom:1px solid var(--line);font-weight:600}
+  .card .body{padding:16px 18px}
+  /* controls */
+  .controls{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin-bottom:14px}
+  .ctl label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);margin-bottom:5px}
+  select,input[type=search]{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:7px;padding:7px 10px;font-size:13px;min-width:170px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{background:var(--panel2);color:var(--mut);border:0;padding:7px 13px;font-size:13px;cursor:pointer}
+  .seg button.on{background:var(--acc);color:#08121f;font-weight:600}
+  /* chart */
+  .chartwrap{position:relative;height:560px}
+  .stat{display:flex;gap:26px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--mut)}
+  .stat b{color:var(--txt)}
+  /* table */
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child,th.l,td.l{text-align:left}
+  thead th{position:sticky;top:0;background:var(--panel2);z-index:2;cursor:pointer;
+    font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);user-select:none}
+  thead th:hover{color:var(--txt)}
+  thead th .ar{opacity:.5;font-size:9px}
+  tr.sec td{background:var(--chip);font-weight:650;color:var(--acc);
+    text-transform:uppercase;letter-spacing:.6px;font-size:11.5px;border-top:1px solid var(--line)}
+  tr.sec td .med{float:right;color:var(--mut);font-weight:500;text-transform:none;letter-spacing:0}
+  tbody tr.row:hover{background:#1b2030}
+  td.tk{font-weight:600}
+  td.nm{color:var(--mut)}
+  .pos{color:var(--pos)} .neg{color:var(--neg)}
+  .tablewrap{max-height:760px;overflow:auto;border-top:1px solid var(--line)}
+  .flag{color:var(--acc);font-size:10px;vertical-align:super;margin-left:1px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11.5px;color:var(--mut)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  footer{color:var(--mut);font-size:11.5px;padding:0 24px 40px;max-width:1500px;margin:0 auto}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Financials &amp; Market Infrastructure — Valuation Comp Sheet</h1>
+  <div class="sub" id="meta"></div>
+</header>
+
+<main>
+  <!-- ================= REGRESSION ================= -->
+  <section class="card">
+    <h2>Growth vs. Valuation — Regression</h2>
+    <div class="body">
+      <div class="controls">
+        <div class="ctl">
+          <label>Sub-sector</label>
+          <select id="secSel"></select>
+        </div>
+        <div class="ctl">
+          <label>X axis — growth (consensus CAGR, FY1→FY3)</label>
+          <div class="seg" id="xseg">
+            <button data-x="rev_cagr" class="on">Revenue CAGR</button>
+            <button data-x="eps_cagr">EPS CAGR</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <label>Y axis — P/E year</label>
+          <div class="seg" id="yseg">
+            <button data-y="0">FY1 (’26E)</button>
+            <button data-y="1">FY2 (’27E)</button>
+            <button data-y="2" class="on">FY3 (’28E · 2yr fwd)</button>
+          </div>
+        </div>
+      </div>
+      <div class="chartwrap"><canvas id="scatter"></canvas></div>
+      <div class="stat" id="regstat"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <!-- ================= TABLE ================= -->
+  <section class="card">
+    <h2>Comp Table</h2>
+    <div class="body">
+      <div class="controls">
+        <div class="ctl">
+          <label>Filter sub-sector</label>
+          <select id="tblSec"></select>
+        </div>
+        <div class="ctl">
+          <label>Search ticker / name</label>
+          <input type="search" id="search" placeholder="e.g. Visa, KKR, COIN"/>
+        </div>
+        <div class="ctl" style="color:var(--mut);font-size:11.5px;max-width:430px">
+          <label>Notes</label>
+          Click any column header to sort. P/E &amp; EPS in the company's reporting
+          currency. <span class="flag">*</span>March-FYE (figures are FY27–29E)
+          &nbsp;<span class="flag">†</span>GAAP EPS &nbsp;<span class="flag">‡</span>FX-adjusted P/E.
+        </div>
+      </div>
+      <div class="tablewrap">
+        <table id="tbl"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="foot"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="./data.js"></script>
+<script>
+const D = window.COMP_DATA;
+const SECTORS = D.sectors;
+const ROWS = D.rows;
+const SEC_COLORS = ["#4f9cf9","#27c19a","#e0b34f","#c779e0","#ef6f6f","#5fd0d6","#9aa4b2","#f08a4b"];
+const colorOf = s => SEC_COLORS[SECTORS.indexOf(s) % SEC_COLORS.length];
+const fmt = (v,d=2)=> v==null||isNaN(v) ? "—" : Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = v => v==null ? "—" : (v>=0?"+":"")+fmt(v,1)+"%";
+const median = a => { a=a.filter(x=>x!=null).sort((x,y)=>x-y); if(!a.length)return null;
+  const m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2; };
+
+document.getElementById("meta").innerHTML =
+  `Consensus estimates &amp; prices via the <b>S&amp;P Global</b> connector · prices as of <b>${D.price_date}</b> · `+
+  `${ROWS.length} names across ${SECTORS.length} sub-sectors · ${D.fx_note}`;
+
+/* ============================ REGRESSION CHART ============================ */
+const secSel = document.getElementById("secSel");
+["All sub-sectors", ...SECTORS].forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; secSel.appendChild(o); });
+let curSec="All sub-sectors", curX="rev_cagr", curY=2;
+const PE_LBL=["FY1 P/E (’26E)","FY2 P/E (’27E)","FY3 P/E (’28E)"];
+const X_LBL ={rev_cagr:"Revenue CAGR (FY1→FY3, consensus)", eps_cagr:"EPS CAGR (FY1→FY3, consensus)"};
+
+function linreg(pts){
+  const n=pts.length; if(n<3) return null;
+  let sx=0,sy=0,sxy=0,sxx=0,syy=0;
+  for(const p of pts){sx+=p.x;sy+=p.y;sxy+=p.x*p.y;sxx+=p.x*p.x;syy+=p.y*p.y;}
+  const d=n*sxx-sx*sx; if(d===0) return null;
+  const m=(n*sxy-sx*sy)/d, b=(sy-m*sx)/n;
+  const r=(n*sxy-sx*sy)/Math.sqrt((n*sxx-sx*sx)*(n*syy-sy*sy));
+  return {m,b,r2:r*r,n};
+}
+
+let chart;
+function drawChart(){
+  const rows = ROWS.filter(r => (curSec==="All sub-sectors"||r.sector===curSec)
+                   && r[curX]!=null && r.pe[curY]!=null && r.pe[curY]>0);
+  const bySec = {};
+  rows.forEach(r=>{ (bySec[r.sector] ||= []).push({x:r[curX], y:r.pe[curY], t:r.ticker}); });
+  const datasets = Object.keys(bySec).map(s=>({
+    label:s, data:bySec[s], backgroundColor:colorOf(s),
+    pointRadius:5, pointHoverRadius:7
+  }));
+  const reg = linreg(rows.map(r=>({x:r[curX], y:r.pe[curY]})));
+  if(reg){
+    const xs = rows.map(r=>r[curX]); const x0=Math.min(...xs), x1=Math.max(...xs);
+    datasets.push({label:"Regression", type:"line", parsing:false,
+      data:[{x:x0,y:reg.m*x0+reg.b},{x:x1,y:reg.m*x1+reg.b}],
+      borderColor:"#e7ebf0", borderWidth:1.6, borderDash:[6,4],
+      pointRadius:0, datalabels:{display:false}, order:99});
+  }
+  const cfg = {
+    type:"scatter",
+    data:{datasets},
+    options:{
+      maintainAspectRatio:false, animation:false,
+      scales:{
+        x:{title:{display:true,text:X_LBL[curX]+"  (%)",color:"#9aa4b2"},
+           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"%"}},
+        y:{title:{display:true,text:PE_LBL[curY]+"  (x)",color:"#9aa4b2"},
+           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"x"}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${c.raw.t}:  ${X_LBL[curX].split(" ")[0]} ${fmt(c.raw.x,1)}% · P/E ${fmt(c.raw.y,1)}x`}},
+        datalabels:{align:"top",anchor:"end",color:"#c8d0db",font:{size:10,weight:600},
+          formatter:(v)=>v.t, display:ctx=>ctx.dataset.type!=="line"}
+      }
+    },
+    plugins:[ChartDataLabels]
+  };
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById("scatter"), cfg);
+
+  const rs = document.getElementById("regstat");
+  if(reg){
+    const sign = reg.m>=0?"+":"";
+    rs.innerHTML = `<span>n = <b>${reg.n}</b></span>`+
+      `<span>R² = <b>${fmt(reg.r2,2)}</b></span>`+
+      `<span>slope = <b>${sign}${fmt(reg.m,2)}x</b> P/E per +1% growth</span>`+
+      `<span>fit: <b>P/E = ${fmt(reg.m,2)}·g ${reg.b>=0?"+":"−"} ${fmt(Math.abs(reg.b),1)}</b></span>`;
+  } else rs.innerHTML = "<span>Not enough data points for a regression.</span>";
+
+  const lg = document.getElementById("legend");
+  lg.innerHTML = (curSec==="All sub-sectors"?SECTORS:[curSec])
+    .map(s=>`<span><i class="dot" style="background:${colorOf(s)}"></i>${s}</span>`).join("");
+}
+secSel.onchange = e=>{curSec=e.target.value; drawChart();};
+document.querySelectorAll("#xseg button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#xseg button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); curX=b.dataset.x; drawChart();});
+document.querySelectorAll("#yseg button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#yseg button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); curY=+b.dataset.y; drawChart();});
+
+/* ============================ COMP TABLE ============================ */
+const COLS = [
+  {k:"ticker", t:"Ticker", l:true, f:r=>tkCell(r)},
+  {k:"name",   t:"Company", l:true, cls:"nm", f:r=>r.name},
+  {k:"price",  t:"Price", f:r=>fmt(r.price,2)+" <span class='nm' style='font-size:11px'>"+r.price_ccy+"</span>"},
+  {k:"e0", t:"EPS ’26E", f:r=>fmt(r.eps[0]), g:r=>r.eps[0]},
+  {k:"e1", t:"EPS ’27E", f:r=>fmt(r.eps[1]), g:r=>r.eps[1]},
+  {k:"e2", t:"EPS ’28E", f:r=>fmt(r.eps[2]), g:r=>r.eps[2]},
+  {k:"p0", t:"P/E ’26E", f:r=>peCell(r.pe[0]), g:r=>r.pe[0]},
+  {k:"p1", t:"P/E ’27E", f:r=>peCell(r.pe[1]), g:r=>r.pe[1]},
+  {k:"p2", t:"P/E ’28E", f:r=>peCell(r.pe[2]), g:r=>r.pe[2]},
+  {k:"rev_cagr", t:"Rev CAGR 26-28", f:r=>cagrCell(r.rev_cagr), g:r=>r.rev_cagr},
+  {k:"eps_cagr", t:"EPS CAGR 26-28", f:r=>cagrCell(r.eps_cagr), g:r=>r.eps_cagr},
+];
+function tkCell(r){
+  let f="";
+  if(r.offcycle) f+="<span class='flag' title='March fiscal year-end — columns are FY27/28/29E'>*</span>";
+  if(r.eps_src==="GAAP") f+="<span class='flag' title='GAAP EPS (no normalized consensus)'>†</span>";
+  if(r.fx) f+="<span class='flag' title='P/E uses FX-adjusted price ("+r.price_ccy+"→"+r.eps_ccy+" @ "+r.fx+")'>‡</span>";
+  return r.ticker+f;
+}
+const peCell  = v=> v==null||v<=0 ? "<span class='nm'>n.m.</span>" : fmt(v,1)+"x";
+const cagrCell= v=> v==null ? "<span class='nm'>n.m.</span>"
+   : `<span class="${v>=0?'pos':'neg'}">${pct(v)}</span>`;
+
+const tblSec = document.getElementById("tblSec");
+["All sub-sectors", ...SECTORS].forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; tblSec.appendChild(o); });
+let tFilter="All sub-sectors", tSearch="", sortK=null, sortDir=-1;
+
+function buildHead(){
+  const tr=document.createElement("tr");
+  COLS.forEach(c=>{ const th=document.createElement("th"); if(c.l)th.className="l";
+    th.innerHTML=c.t+` <span class="ar">▲▼</span>`;
+    th.onclick=()=>{
+      if(sortK===c.k){ sortDir=-sortDir; }       // same column → toggle direction
+      else { sortK=c.k; sortDir=(c.k==="ticker"||c.k==="name")?1:-1; } // new column default
+      render();
+    };
+    tr.appendChild(th); });
+  const thead=document.querySelector("#tbl thead"); thead.innerHTML=""; thead.appendChild(tr);
+}
+function valFor(r,k){
+  if(k==="ticker") return r.ticker;
+  if(k==="name") return r.name;
+  if(k==="price") return r.price;
+  const map={e0:r.eps[0],e1:r.eps[1],e2:r.eps[2],p0:r.pe[0],p1:r.pe[1],p2:r.pe[2],
+             rev_cagr:r.rev_cagr,eps_cagr:r.eps_cagr};
+  return map[k];
+}
+function render(){
+  const tbody=document.querySelector("#tbl tbody"); tbody.innerHTML="";
+  const secList = tFilter==="All sub-sectors"?SECTORS:[tFilter];
+  secList.forEach(sec=>{
+    let rows = ROWS.filter(r=>r.sector===sec);
+    if(tSearch) rows = rows.filter(r=>(r.ticker+" "+r.name).toLowerCase().includes(tSearch));
+    if(!rows.length) return;
+    if(sortK){
+      const num = !(sortK==="ticker"||sortK==="name");
+      rows = rows.slice().sort((a,b)=>{
+        let x=valFor(a,sortK), y=valFor(b,sortK);
+        if(x==null) return 1; if(y==null) return -1;
+        return num ? (x-y)*sortDir : (""+x).localeCompare(""+y)*sortDir;
+      });
+    }
+    const mp = median(rows.map(r=>r.pe[2])), mc = median(rows.map(r=>r.rev_cagr));
+    const sr=document.createElement("tr"); sr.className="sec";
+    sr.innerHTML=`<td colspan="${COLS.length}">${sec}
+       <span class="med">median P/E ’28E ${mp==null?"—":fmt(mp,1)+"x"} · median Rev CAGR ${mc==null?"—":pct(mc)} · ${rows.length} names</span></td>`;
+    tbody.appendChild(sr);
+    rows.forEach(r=>{
+      const tr=document.createElement("tr"); tr.className="row";
+      tr.innerHTML=COLS.map(c=>{
+        const cls=(c.l?"l ":"")+(c.cls||"")+(c.k==="ticker"?" tk":"");
+        return `<td class="${cls}">${c.f(r)}</td>`;
+      }).join("");
+      tbody.appendChild(tr);
+    });
+  });
+}
+tblSec.onchange=e=>{tFilter=e.target.value; render();};
+document.getElementById("search").oninput=e=>{tSearch=e.target.value.toLowerCase().trim(); render();};
+
+document.getElementById("foot").innerHTML =
+  `Source: S&amp;P Global connector (consensus mean estimates, normalized EPS where available else GAAP). `+
+  `Prices as of ${D.price_date}; FX as of ~${D.price_date}. P/E = price ÷ EPS, both in the company's reporting currency `+
+  `(price FX-adjusted where the listing trades in a different currency). CAGR = 2-year consensus growth (FY1→FY3). `+
+  `For comparability, columns are labelled calendar ’26/’27/’28E; March fiscal year-end names (*) are FY27/28/29E. `+
+  `Estimates are consensus and may not reflect the latest revisions. For research use; not investment advice.`;
+
+buildHead(); render(); drawChart();
+</script>
+</body>
+</html>
