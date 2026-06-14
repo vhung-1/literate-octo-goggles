@@ -69,7 +69,7 @@
 <main>
   <!-- ================= REGRESSION ================= -->
   <section class="card">
-    <h2>Growth vs. Valuation — Regression</h2>
+    <h2>Valuation vs. Growth — Regression</h2>
     <div class="body">
       <div class="controls">
         <div class="ctl">
@@ -77,18 +77,18 @@
           <select id="secSel"></select>
         </div>
         <div class="ctl">
-          <label>X axis — growth (consensus CAGR, FY1→FY3)</label>
-          <div class="seg" id="xseg">
-            <button data-x="rev_cagr" class="on">Revenue CAGR</button>
-            <button data-x="eps_cagr">EPS CAGR</button>
-          </div>
-        </div>
-        <div class="ctl">
-          <label>Y axis — P/E year</label>
+          <label>X axis — P/E year</label>
           <div class="seg" id="yseg">
             <button data-y="0">FY1 (’26E)</button>
             <button data-y="1">FY2 (’27E)</button>
             <button data-y="2" class="on">FY3 (’28E · 2yr fwd)</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <label>Y axis — growth (consensus CAGR, FY1→FY3)</label>
+          <div class="seg" id="xseg">
+            <button data-x="rev_cagr" class="on">Revenue CAGR</button>
+            <button data-x="eps_cagr">EPS CAGR</button>
           </div>
         </div>
       </div>
@@ -170,15 +170,16 @@ let chart;
 function drawChart(){
   const rows = ROWS.filter(r => (curSec==="All sub-sectors"||r.sector===curSec)
                    && r[curX]!=null && r.pe[curY]!=null && r.pe[curY]>0);
+  // X axis = P/E (selected year); Y axis = growth CAGR (selected metric)
   const bySec = {};
-  rows.forEach(r=>{ (bySec[r.sector] ||= []).push({x:r[curX], y:r.pe[curY], t:r.ticker}); });
+  rows.forEach(r=>{ (bySec[r.sector] ||= []).push({x:r.pe[curY], y:r[curX], t:r.ticker}); });
   const datasets = Object.keys(bySec).map(s=>({
     label:s, data:bySec[s], backgroundColor:colorOf(s),
     pointRadius:5, pointHoverRadius:7
   }));
-  const reg = linreg(rows.map(r=>({x:r[curX], y:r.pe[curY]})));
+  const reg = linreg(rows.map(r=>({x:r.pe[curY], y:r[curX]})));
   if(reg){
-    const xs = rows.map(r=>r[curX]); const x0=Math.min(...xs), x1=Math.max(...xs);
+    const xs = rows.map(r=>r.pe[curY]); const x0=Math.min(...xs), x1=Math.max(...xs);
     datasets.push({label:"Regression", type:"line", parsing:false,
       data:[{x:x0,y:reg.m*x0+reg.b},{x:x1,y:reg.m*x1+reg.b}],
       borderColor:"#e7ebf0", borderWidth:1.6, borderDash:[6,4],
@@ -190,14 +191,14 @@ function drawChart(){
     options:{
       maintainAspectRatio:false, animation:false,
       scales:{
-        x:{title:{display:true,text:X_LBL[curX]+"  (%)",color:"#9aa4b2"},
-           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"%"}},
-        y:{title:{display:true,text:PE_LBL[curY]+"  (x)",color:"#9aa4b2"},
-           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"x"}}
+        x:{title:{display:true,text:PE_LBL[curY]+"  (x)",color:"#9aa4b2"},
+           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"x"}},
+        y:{title:{display:true,text:X_LBL[curX]+"  (%)",color:"#9aa4b2"},
+           grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"%"}}
       },
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.raw.t}:  ${X_LBL[curX].split(" ")[0]} ${fmt(c.raw.x,1)}% · P/E ${fmt(c.raw.y,1)}x`}},
+        tooltip:{callbacks:{label:c=>`${c.raw.t}:  P/E ${fmt(c.raw.x,1)}x · ${X_LBL[curX].split(" ")[0]} ${fmt(c.raw.y,1)}%`}},
         datalabels:{align:"top",anchor:"end",color:"#c8d0db",font:{size:10,weight:600},
           formatter:(v)=>v.t, display:ctx=>ctx.dataset.type!=="line"}
       }
@@ -212,8 +213,8 @@ function drawChart(){
     const sign = reg.m>=0?"+":"";
     rs.innerHTML = `<span>n = <b>${reg.n}</b></span>`+
       `<span>R² = <b>${fmt(reg.r2,2)}</b></span>`+
-      `<span>slope = <b>${sign}${fmt(reg.m,2)}x</b> P/E per +1% growth</span>`+
-      `<span>fit: <b>P/E = ${fmt(reg.m,2)}·g ${reg.b>=0?"+":"−"} ${fmt(Math.abs(reg.b),1)}</b></span>`;
+      `<span>slope = <b>${sign}${fmt(reg.m,2)} pp</b> growth per +1x P/E</span>`+
+      `<span>fit: <b>g = ${fmt(reg.m,2)}·P/E ${reg.b>=0?"+":"−"} ${fmt(Math.abs(reg.b),1)}</b></span>`;
   } else rs.innerHTML = "<span>Not enough data points for a regression.</span>";
 
   const lg = document.getElementById("legend");
