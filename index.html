@@ -242,7 +242,13 @@ const COLS = [
   {k:"p2", t:"P/E ’28E", f:r=>peCell(r.pe[2]), g:r=>r.pe[2]},
   {k:"rev_cagr", t:"Rev CAGR 26-28", f:r=>cagrCell(r.rev_cagr), g:r=>r.rev_cagr},
   {k:"eps_cagr", t:"EPS CAGR 26-28", f:r=>cagrCell(r.eps_cagr), g:r=>r.eps_cagr},
+  {k:"peg", t:"PEG ’26E", f:r=>pegCell(pegOf(r)), g:r=>pegOf(r)},
 ];
+// PEG = FY1 P/E (’26E) ÷ EPS CAGR (26–28E, %).  n.m. where P/E or growth ≤ 0.
+function pegOf(r){
+  return (r.pe[0]!=null && r.pe[0]>0 && r.eps_cagr!=null && r.eps_cagr>0)
+    ? r.pe[0]/r.eps_cagr : null;
+}
 function tkCell(r){
   let f="";
   if(r.offcycle) f+="<span class='flag' title='March fiscal year-end — columns are FY27/28/29E'>*</span>";
@@ -253,6 +259,9 @@ function tkCell(r){
 const peCell  = v=> v==null||v<=0 ? "<span class='nm'>n.m.</span>" : fmt(v,1)+"x";
 const cagrCell= v=> v==null ? "<span class='nm'>n.m.</span>"
    : `<span class="${v>=0?'pos':'neg'}">${pct(v)}</span>`;
+// PEG colouring: ≤1 cheap (green), ≥2 rich (red)
+const pegCell = v=> v==null ? "<span class='nm'>n.m.</span>"
+   : `<span class="${v<=1?'pos':(v>=2?'neg':'')}">${fmt(v,2)}x</span>`;
 
 const tblSec = document.getElementById("tblSec");
 ["All sub-sectors", ...SECTORS].forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; tblSec.appendChild(o); });
@@ -275,7 +284,7 @@ function valFor(r,k){
   if(k==="name") return r.name;
   if(k==="price") return r.price;
   const map={e0:r.eps[0],e1:r.eps[1],e2:r.eps[2],p0:r.pe[0],p1:r.pe[1],p2:r.pe[2],
-             rev_cagr:r.rev_cagr,eps_cagr:r.eps_cagr};
+             rev_cagr:r.rev_cagr,eps_cagr:r.eps_cagr,peg:pegOf(r)};
   return map[k];
 }
 function orderedGroups(){
@@ -300,10 +309,11 @@ function orderedGroups(){
 function render(){
   const tbody=document.querySelector("#tbl tbody"); tbody.innerHTML="";
   orderedGroups().forEach(({sec,rows})=>{
-    const mp = median(rows.map(r=>r.pe[2])), mc = median(rows.map(r=>r.rev_cagr));
+    const mp = median(rows.map(r=>r.pe[2])), mc = median(rows.map(r=>r.rev_cagr)),
+          mg = median(rows.map(r=>pegOf(r)));
     const sr=document.createElement("tr"); sr.className="sec";
     sr.innerHTML=`<td colspan="${COLS.length}">${sec}
-       <span class="med">median P/E ’28E ${mp==null?"—":fmt(mp,1)+"x"} · median Rev CAGR ${mc==null?"—":pct(mc)} · ${rows.length} names</span></td>`;
+       <span class="med">median P/E ’28E ${mp==null?"—":fmt(mp,1)+"x"} · median Rev CAGR ${mc==null?"—":pct(mc)} · median PEG ${mg==null?"—":fmt(mg,2)+"x"} · ${rows.length} names</span></td>`;
     tbody.appendChild(sr);
     rows.forEach(r=>{
       const tr=document.createElement("tr"); tr.className="row";
@@ -318,13 +328,14 @@ function render(){
 function exportCSV(){
   const head=["Sub-sector","Ticker","Company","Price","Currency",
     "EPS 26E","EPS 27E","EPS 28E","P/E 26E","P/E 27E","P/E 28E",
-    "Rev CAGR 26-28 %","EPS CAGR 26-28 %","Reporting ccy","EPS basis","Fiscal note"];
+    "Rev CAGR 26-28 %","EPS CAGR 26-28 %","PEG 26E","Reporting ccy","EPS basis","Fiscal note"];
   const esc=v=>{ const s=v==null?"":String(v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const r2=v=> v==null?"":Math.round(v*100)/100;
   const lines=[head.join(",")];
   orderedGroups().forEach(({sec,rows})=>rows.forEach(r=>{
     lines.push([sec,r.ticker,r.name,r.price,r.price_ccy,
       r.eps[0],r.eps[1],r.eps[2],r.pe[0],r.pe[1],r.pe[2],
-      r.rev_cagr,r.eps_cagr,r.eps_ccy,r.eps_src,
+      r.rev_cagr,r.eps_cagr,r2(pegOf(r)),r.eps_ccy,r.eps_src,
       r.offcycle?"FY27-29E (Mar FYE)":"CY26-28E"].map(esc).join(","));
   }));
   const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
@@ -339,6 +350,7 @@ document.getElementById("foot").innerHTML =
   `Source: S&amp;P Global connector (consensus mean estimates, normalized EPS where available else GAAP). `+
   `Prices as of ${D.price_date}; FX as of ~${D.price_date}. P/E = price ÷ EPS, both in the company's reporting currency `+
   `(price FX-adjusted where the listing trades in a different currency). CAGR = 2-year consensus growth (FY1→FY3). `+
+  `PEG = FY1 P/E (’26E) ÷ EPS CAGR (26–28E, %); shown only where both are positive (≤1.0 shaded green, ≥2.0 red). `+
   `For comparability, columns are labelled calendar ’26/’27/’28E; March fiscal year-end names (*) are FY27/28/29E. `+
   `Estimates are consensus and may not reflect the latest revisions. For research use; not investment advice.`;
 
