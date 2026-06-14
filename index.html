@@ -28,6 +28,20 @@
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
   .seg button{background:var(--panel2);color:var(--mut);border:0;padding:7px 13px;font-size:13px;cursor:pointer}
   .seg button.on{background:var(--acc);color:#08121f;font-weight:600}
+  /* ranking leaderboard */
+  .rank{margin-bottom:16px}
+  .rank h3{margin:0 0 10px;font-size:13px;font-weight:600}
+  .rank h3 small{color:var(--mut);font-weight:400}
+  .rankgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px}
+  .rankitem{display:flex;align-items:center;gap:10px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:7px;padding:7px 11px;cursor:pointer}
+  .rankitem:hover{border-color:var(--acc)}
+  .rankitem.on{border-color:var(--acc);background:#1d2740}
+  .rankitem .rk{color:var(--mut);font-size:11px;width:18px;text-align:right}
+  .rankitem .desc{flex:1;font-size:12.5px;line-height:1.3}
+  .rankitem .desc small{color:var(--mut);display:block;font-size:10.5px}
+  .rankitem .r2{font-weight:700;font-variant-numeric:tabular-nums}
+  .r2.s3{color:var(--pos)} .r2.s2{color:#e0b34f} .r2.s1{color:var(--mut)}
   button.dl{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
     border-radius:7px;padding:7px 13px;font-size:13px;cursor:pointer}
   button.dl:hover{border-color:var(--acc);color:var(--acc)}
@@ -71,6 +85,10 @@
   <section class="card">
     <h2>Valuation vs. Growth — Regression</h2>
     <div class="body">
+      <div class="rank">
+        <h3>Strongest fits — regressions ranked by R² <small>(click one to load it into the chart below)</small></h3>
+        <div class="rankgrid" id="ranking"></div>
+      </div>
       <div class="controls">
         <div class="ctl">
           <label>Sub-sector</label>
@@ -220,14 +238,46 @@ function drawChart(){
   const lg = document.getElementById("legend");
   lg.innerHTML = (curSec==="All sub-sectors"?SECTORS:[curSec])
     .map(s=>`<span><i class="dot" style="background:${colorOf(s)}"></i>${s}</span>`).join("");
+  renderRanking();
 }
 secSel.onchange = e=>{curSec=e.target.value; drawChart();};
+function setSeg(id,attr,val){ document.querySelectorAll(`#${id} button`).forEach(x=>
+  x.classList.toggle("on", x.dataset[attr]==String(val))); }
 document.querySelectorAll("#xseg button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll("#xseg button").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); curX=b.dataset.x; drawChart();});
+  setSeg("xseg","x",b.dataset.x); curX=b.dataset.x; drawChart();});
 document.querySelectorAll("#yseg button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll("#yseg button").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); curY=+b.dataset.y; drawChart();});
+  setSeg("yseg","y",b.dataset.y); curY=+b.dataset.y; drawChart();});
+
+/* -------- regression leaderboard: rank every sector × metric × P/E year by R² -------- */
+const YLBL=["’26E","’27E","’28E"];
+function allRegs(){
+  const out=[]; const metrics=[["rev_cagr","Revenue CAGR"],["eps_cagr","EPS CAGR"]];
+  for(const sec of ["All sub-sectors",...SECTORS])
+    for(const [mk,ml] of metrics)
+      for(let y=0;y<3;y++){
+        const rows=ROWS.filter(r=>(sec==="All sub-sectors"||r.sector===sec)
+                     && r[mk]!=null && r.pe[y]!=null && r.pe[y]>0);
+        const reg=linreg(rows.map(r=>({x:r.pe[y], y:r[mk]})));
+        if(reg && reg.n>=4) out.push({sec,mk,ml,y,r2:reg.r2,m:reg.m,n:reg.n});
+      }
+  return out.sort((a,b)=>b.r2-a.r2);
+}
+const RANK = allRegs();
+function applyReg(d){ curSec=d.sec; secSel.value=d.sec; curX=d.mk; curY=d.y;
+  setSeg("xseg","x",d.mk); setSeg("yseg","y",d.y); drawChart(); }
+function renderRanking(){
+  const box=document.getElementById("ranking");
+  box.innerHTML = RANK.slice(0,10).map((d,i)=>{
+    const on = d.sec===curSec && d.mk===curX && d.y===curY;
+    const s = d.r2>=0.5?"s3":(d.r2>=0.3?"s2":"s1");
+    const sec = d.sec==="All sub-sectors" ? "All sub-sectors" : d.sec;
+    return `<div class="rankitem ${on?'on':''}" data-i="${i}">
+      <span class="rk">${i+1}</span>
+      <span class="desc">${sec} · ${d.ml}<small>vs P/E ${YLBL[d.y]} · n=${d.n} · slope ${(d.m>=0?'+':'')}${fmt(d.m,2)}</small></span>
+      <span class="r2 ${s}">R² ${fmt(d.r2,2)}</span></div>`;
+  }).join("");
+  box.querySelectorAll(".rankitem").forEach(el=>el.onclick=()=>applyReg(RANK[+el.dataset.i]));
+}
 
 /* ============================ COMP TABLE ============================ */
 const COLS = [
