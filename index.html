@@ -42,6 +42,14 @@
   .rankitem .desc small{color:var(--mut);display:block;font-size:10.5px}
   .rankitem .r2{font-weight:700;font-variant-numeric:tabular-nums}
   .r2.s3{color:var(--pos)} .r2.s2{color:#e0b34f} .r2.s1{color:var(--mut)}
+  /* exclude-names bar */
+  .exbar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:2px 0 12px;font-size:12px;min-height:24px}
+  .exbar .extip{color:var(--mut)}
+  .exbar .exlbl{color:var(--mut);margin-left:6px}
+  .exchip{background:var(--chip);border:1px solid var(--line);border-radius:12px;
+    padding:3px 9px;cursor:pointer;color:var(--txt)}
+  .exchip:hover{border-color:var(--neg);color:var(--neg)}
+  .exclear{background:none;border:0;color:var(--acc);cursor:pointer;font-size:12px;text-decoration:underline}
   button.dl{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
     border-radius:7px;padding:7px 13px;font-size:13px;cursor:pointer}
   button.dl:hover{border-color:var(--acc);color:var(--acc)}
@@ -110,6 +118,7 @@
           </div>
         </div>
       </div>
+      <div class="exbar" id="exbar"></div>
       <div class="chartwrap"><canvas id="scatter"></canvas></div>
       <div class="stat" id="regstat"></div>
       <div class="legend" id="legend"></div>
@@ -185,19 +194,25 @@ function linreg(pts){
 }
 
 let chart;
+const excluded = new Set();   // tickers hidden from the plot (do NOT affect the regression/R²)
 function drawChart(){
-  const rows = ROWS.filter(r => (curSec==="All sub-sectors"||r.sector===curSec)
+  // FULL sub-sector population — the regression & R² are always computed on this set
+  const full = ROWS.filter(r => (curSec==="All sub-sectors"||r.sector===curSec)
                    && r[curX]!=null && r.pe[curY]!=null && r.pe[curY]>0);
+  const reg = linreg(full.map(r=>({x:r.pe[curY], y:r[curX]})));
+  // VISIBLE points = full minus user-excluded names (for readability only)
+  const vis = full.filter(r=>!excluded.has(r.ticker));
   // X axis = P/E (selected year); Y axis = growth CAGR (selected metric)
   const bySec = {};
-  rows.forEach(r=>{ (bySec[r.sector] ||= []).push({x:r.pe[curY], y:r[curX], t:r.ticker}); });
+  vis.forEach(r=>{ (bySec[r.sector] ||= []).push({x:r.pe[curY], y:r[curX], t:r.ticker}); });
   const datasets = Object.keys(bySec).map(s=>({
     label:s, data:bySec[s], backgroundColor:colorOf(s),
     pointRadius:5, pointHoverRadius:7
   }));
-  const reg = linreg(rows.map(r=>({x:r.pe[curY], y:r[curX]})));
   if(reg){
-    const xs = rows.map(r=>r.pe[curY]); const x0=Math.min(...xs), x1=Math.max(...xs);
+    // draw the (full-set) fit line across the visible x-range so axes stay readable
+    const base = vis.length?vis:full;
+    const xs = base.map(r=>r.pe[curY]); const x0=Math.min(...xs), x1=Math.max(...xs);
     datasets.push({label:"Regression", type:"line", parsing:false,
       data:[{x:x0,y:reg.m*x0+reg.b},{x:x1,y:reg.m*x1+reg.b}],
       borderColor:"#e7ebf0", borderWidth:1.6, borderDash:[6,4],
@@ -208,6 +223,13 @@ function drawChart(){
     data:{datasets},
     options:{
       maintainAspectRatio:false, animation:false,
+      onClick:(e,els,ch)=>{ if(!els.length) return;
+        const ds=ch.data.datasets[els[0].datasetIndex]; if(ds.type==="line") return;
+        const pt=ds.data[els[0].index];
+        // defer so we don't destroy the chart mid event-dispatch
+        if(pt&&pt.t){ excluded.add(pt.t); setTimeout(drawChart,0); } },
+      onHover:(e,els)=>{ const t=e.native&&e.native.target; if(t)
+        t.style.cursor = els.some(el=>chart.data.datasets[el.datasetIndex].type!=="line")?"pointer":"default"; },
       scales:{
         x:{title:{display:true,text:PE_LBL[curY]+"  (x)",color:"#9aa4b2"},
            grid:{color:"#222731"}, ticks:{color:"#9aa4b2",callback:v=>v+"x"}},
@@ -216,7 +238,7 @@ function drawChart(){
       },
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.raw.t}:  P/E ${fmt(c.raw.x,1)}x · ${X_LBL[curX].split(" ")[0]} ${fmt(c.raw.y,1)}%`}},
+        tooltip:{callbacks:{label:c=>`${c.raw.t}:  P/E ${fmt(c.raw.x,1)}x · ${X_LBL[curX].split(" ")[0]} ${fmt(c.raw.y,1)}%  (click to hide)`}},
         datalabels:{align:"top",anchor:"end",color:"#c8d0db",font:{size:10,weight:600},
           formatter:(v)=>v.t, display:ctx=>ctx.dataset.type!=="line"}
       }
@@ -229,12 +251,15 @@ function drawChart(){
   const rs = document.getElementById("regstat");
   if(reg){
     const sign = reg.m>=0?"+":"";
-    rs.innerHTML = `<span>n = <b>${reg.n}</b></span>`+
+    const nHidden = full.length - vis.length;
+    rs.innerHTML = `<span>n = <b>${reg.n}</b> <small style="color:var(--mut)">(sub-sector R², all names)</small></span>`+
       `<span>R² = <b>${fmt(reg.r2,2)}</b></span>`+
       `<span>slope = <b>${sign}${fmt(reg.m,2)} pp</b> growth per +1x P/E</span>`+
-      `<span>fit: <b>g = ${fmt(reg.m,2)}·P/E ${reg.b>=0?"+":"−"} ${fmt(Math.abs(reg.b),1)}</b></span>`;
+      `<span>fit: <b>g = ${fmt(reg.m,2)}·P/E ${reg.b>=0?"+":"−"} ${fmt(Math.abs(reg.b),1)}</b></span>`+
+      (nHidden? `<span style="color:var(--mut)">showing ${vis.length} of ${full.length} · ${nHidden} hidden</span>`:"");
   } else rs.innerHTML = "<span>Not enough data points for a regression.</span>";
 
+  renderExbar();
   const lg = document.getElementById("legend");
   lg.innerHTML = (curSec==="All sub-sectors"?SECTORS:[curSec])
     .map(s=>`<span><i class="dot" style="background:${colorOf(s)}"></i>${s}</span>`).join("");
@@ -277,6 +302,15 @@ function renderRanking(){
       <span class="r2 ${s}">R² ${fmt(d.r2,2)}</span></div>`;
   }).join("");
   box.querySelectorAll(".rankitem").forEach(el=>el.onclick=()=>applyReg(RANK[+el.dataset.i]));
+}
+function renderExbar(){
+  const box=document.getElementById("exbar"); const list=[...excluded];
+  box.innerHTML = `<span class="extip">Tip: click any point to hide it (the R² above stays the full sub-sector fit).</span>`+
+    (list.length ? `<span class="exlbl">Hidden:</span>`+
+      list.map(t=>`<span class="exchip" data-t="${t}" title="click to restore">${t} ✕</span>`).join("")+
+      `<button class="exclear">restore all</button>` : "");
+  box.querySelectorAll(".exchip").forEach(c=>c.onclick=()=>{excluded.delete(c.dataset.t); drawChart();});
+  const cb=box.querySelector(".exclear"); if(cb) cb.onclick=()=>{excluded.clear(); drawChart();};
 }
 
 /* ============================ COMP TABLE ============================ */
