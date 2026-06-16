@@ -1,41 +1,24 @@
 #!/usr/bin/env python3
 """Merge S&P prices + consensus estimates -> comp-sheet dataset (data.js).
-All figures sourced from the S&P Global connector as of the price date below.
+
+Inputs (regenerate these from the S&P Global connector to refresh — see REFRESH.md):
+  build/prices.json        {id: [close, ccy], "_date": "YYYY-MM-DD"}
+  build/fx.json            {ccy: USD-per-unit, "_date": ...}
+  build/estimates_raw.json one JSON object per line (consensus EPS/revenue per fiscal year)
+The S&P identifier -> display-ticker -> sub-sector map (SECTORS) is stable and lives below.
 """
 import json, os
 
-PRICE_DATE = "2026-06-12"
-AS_OF = "2026-06-12"
+HERE = os.path.dirname(__file__)
+def load(name):
+    with open(os.path.join(HERE, name)) as f:
+        return json.load(f)
 
-# --- FX: units of USD per 1 unit of currency (approx, ~2026-06-12) ---
-TO_USD = {"USD": 1.0, "GBP": 1.3368, "EUR": 1.1537, "CHF": 1.24,
-          "SEK": 1.1537 / 10.92, "CAD": 0.715}
-
-# --- close price (value, currency) keyed by S&P identifier ---
-PRICE = {
- "CME":(269.53,"USD"),"ICE":(140.53,"USD"),"NDAQ":(88.98,"USD"),"CBOE":(294.91,"USD"),
- "LSE:LSEG":(90.10,"GBP"),"XTRA:DB1":(249.50,"EUR"),"ENXTPA:ENX":(148.20,"EUR"),
- "TW":(101.19,"USD"),"MKTX":(120.89,"USD"),"MIAX":(43.29,"USD"),"MRX":(61.96,"USD"),
- "SPGI":(418.91,"USD"),"MCO":(447.85,"USD"),"MSCI":(599.12,"USD"),"FDS":(241.16,"USD"),
- "EFX":(163.71,"USD"),"TRU":(66.13,"USD"),"LSE:EXPN":(25.69,"GBP"),"FICO":(1179.19,"USD"),
- "VRSK":(183.80,"USD"),"V":(322.39,"USD"),"MA":(489.98,"USD"),"PYPL":(41.53,"USD"),
- "XYZ":(69.52,"USD"),"ENXTAM:ADYEN":(828.40,"EUR"),"TOST":(24.82,"USD"),"SHOP":(108.24,"USD"),
- "SOFI":(16.58,"USD"),"FISV":(53.78,"USD"),"FIS":(39.20,"USD"),"GPN":(67.71,"USD"),
- "JKHY":(128.23,"USD"),"CPAY":(356.11,"USD"),"WEX":(135.50,"USD"),"AFRM":(66.17,"USD"),
- "KLAR":(16.23,"USD"),"BILL":(33.18,"USD"),"CHYM":(16.70,"USD"),"MQ":(3.83,"USD"),
- "FOUR":(41.18,"USD"),"LSE:WISE":(8.04,"GBP"),"RELY":(19.08,"USD"),"WU":(7.55,"USD"),
- "LAZ":(43.72,"USD"),"EVR":(357.38,"USD"),"MC":(67.70,"USD"),"HLI":(137.89,"USD"),
- "PWP":(15.66,"USD"),"PJT":(152.37,"USD"),"PIPR":(79.05,"USD"),"SWX:PGHN":(697.80,"CHF"),
- "OM:EQT":(287.50,"SEK"),"ENXTAM:CVC":(12.95,"EUR"),"LSE:ICG":(17.79,"GBP"),"ARES":(134.90,"USD"),
- "APO":(133.88,"USD"),"BX":(122.79,"USD"),"KKR":(96.24,"USD"),"OWL":(9.68,"USD"),
- "CG":(45.75,"USD"),"BAM":(47.13,"USD"),"TPG":(43.01,"USD"),"STEP":(44.39,"USD"),
- "HLNE":(80.10,"USD"),"BLK":(1032.00,"USD"),"TROW":(109.64,"USD"),"XTRA:DWS":(60.80,"EUR"),
- "ENXTPA:AMUN":(82.55,"EUR"),"AB":(36.44,"USD"),"BEN":(32.13,"USD"),"IVZ":(28.92,"USD"),
- "AMP":(459.13,"USD"),"SCHW":(91.10,"USD"),"LPLA":(295.66,"USD"),"HOOD":(93.19,"USD"),
- "IBKR":(90.81,"USD"),"COIN":(159.78,"USD"),"RJF":(154.40,"USD"),"SF":(72.66,"USD"),
- "WLTH":(8.96,"USD"),"ETOR":(38.52,"USD"),"SWX:SQN":(39.42,"CHF"),"XTRA:FTK":(36.12,"EUR"),
- "BIT:BGN":(60.90,"EUR"),"BIT:FBK":(21.93,"EUR"),"CRCL":(77.84,"USD"),"FIGR":(27.93,"USD"),
-}
+_prices = load("prices.json")
+TO_USD = {k: v for k, v in load("fx.json").items() if not k.startswith("_")}
+PRICE = {k: tuple(v) for k, v in _prices.items() if not k.startswith("_")}
+PRICE_DATE = _prices.get("_date", "")
+AS_OF = PRICE_DATE
 
 # sector -> [(s&p id, display ticker)] preserving the user's ordering
 SECTORS = {
@@ -142,7 +125,8 @@ for sector, members in SECTORS.items():
         rows.append(rec)
 
 out = {"as_of": AS_OF, "price_date": PRICE_DATE,
-       "fx_note": "FX ~%s: GBPUSD 1.3368, EURUSD 1.1537, EURSEK 10.92." % PRICE_DATE,
+       "fx_note": "FX as of %s: GBPUSD %.4f, EURUSD %.4f, SEKUSD %.4f." % (
+           PRICE_DATE, TO_USD["GBP"], TO_USD["EUR"], TO_USD["SEK"]),
        "sectors": list(SECTORS.keys()), "rows": rows}
 
 with open(os.path.join(HERE, "..", "data.js"), "w") as f:

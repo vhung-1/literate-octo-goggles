@@ -1,0 +1,10 @@
+{
+ "_date": "2026-06-15",
+ "_note": "USD per 1 unit of currency. GBPUSD 1.3405, EURUSD 1.1579, EURSEK 10.92 (SEK=EURUSD/EURSEK).",
+ "USD": 1.0,
+ "GBP": 1.3405,
+ "EUR": 1.1579,
+ "CHF": 1.24,
+ "SEK": 0.10604,
+ "CAD": 0.715
+}
