@@ -48,7 +48,7 @@ def pick(n): [.estimates[] | select(.name==n) | .value]
 }
 ```
 
-## Automating a daily 7am refresh
+## Automating a daily 6am refresh
 
 > **A plain GitHub Actions cron cannot do the data pull** — the prices/estimates
 > come from the **S&P Global MCP connector**, which only exists inside a Claude
@@ -57,13 +57,13 @@ def pick(n): [.estimates[] | select(.name==n) | .value]
 
 Set it up as a **scheduled session/trigger in Claude Code on the web**
 (see https://code.claude.com/docs/en/claude-code-on-the-web) pointed at this repo,
-running every day at 07:00 with this prompt:
+running every day at 06:00 with this prompt:
 
 > *"Follow REFRESH.md: re-pull prices, FX and consensus estimates from the S&P
 > Global connector for every identifier in build/prices.json, regenerate
 > build/{prices,fx,estimates_raw}.json, run build/build_data.py, then commit and
 > push the result straight to `main` (skip the PR) so GitHub Pages redeploys."*
 
-Pick 07:00 in your timezone (markets are closed pre-open, so you'll get the prior
+Pick 06:00 in your timezone (markets are closed pre-open, so you'll get the prior
 session's close). Once pushed to `main`, the existing Pages workflow redeploys
 the site with no further action.
