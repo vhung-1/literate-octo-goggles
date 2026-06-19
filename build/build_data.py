@@ -135,6 +135,24 @@ with open(os.path.join(HERE, "..", "data.js"), "w") as f:
     json.dump(out, f, indent=1)
     f.write(";\n")
 
+# Also emit a single self-contained file (chart libs + data inlined) for embedding elsewhere.
+def _build_standalone():
+    root = os.path.join(HERE, "..")
+    html = open(os.path.join(root, "index.html"), encoding="utf-8").read()
+    refs = {
+        '<script src="./vendor/chart.umd.min.js"></script>': "vendor/chart.umd.min.js",
+        '<script src="./vendor/chartjs-plugin-datalabels.min.js"></script>': "vendor/chartjs-plugin-datalabels.min.js",
+        '<script src="./data.js"></script>': "data.js",
+    }
+    for tag, rel in refs.items():
+        if tag not in html:
+            print("standalone: tag not found, skipping:", rel); return
+        body = open(os.path.join(root, rel), encoding="utf-8").read().replace("</script>", "<\\/script>")
+        html = html.replace(tag, "<script>\n" + body + "\n</script>")
+    open(os.path.join(root, "comp_sheet_standalone.html"), "w", encoding="utf-8").write(html)
+    print("wrote comp_sheet_standalone.html")
+_build_standalone()
+
 print("rows:", len(rows), "| missing:", missing)
 print("offcycle:", [r["ticker"] for r in rows if r["offcycle"]])
 # quick sanity print
